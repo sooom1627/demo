@@ -1,9 +1,10 @@
-import Account from "@/components/Accounts";
 import { supabase } from "@/lib/supabase";
 import { Session } from "@supabase/supabase-js";
 import { Redirect } from "expo-router";
 import { useEffect, useState } from "react";
+import { Text } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import UrlForm from "../../components/UrlForm";
 
 export default function Index() {
 	const [session, setSession] = useState<Session | null>(null);
@@ -20,7 +21,8 @@ export default function Index() {
 
 	return (
 		<SafeAreaView className="flex-1 my-4 mx-4">
-			<Account session={session} />
+			<Text className="text-2xl font-bold mb-4">ホーム</Text>
+			<UrlForm />
 		</SafeAreaView>
 	);
 }
