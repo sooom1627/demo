@@ -1,0 +1,14 @@
+---
+description: 本プロジェクトは下記を押さえて実装しなさい。
+globs: 
+alwaysApply: false
+---
+Tech Stack
+Expo SDK 53
+Supabase
+
+Routing
+・Expo Router
+
+Styling
+・Nativewind
