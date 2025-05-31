@@ -46,10 +46,26 @@ export default function UrlForm() {
 		}
 	}, []);
 
-	// callbacks
-	const handlePresentModalPress = useCallback(() => {
-		bottomSheetModalRef.current?.present();
+	// フォームの内容をクリアする関数
+	const clearFormContent = useCallback(() => {
+		setClipboardContent("");
+		setValidationResult({ isValid: false });
+		setIsLoading(false);
+		setIsCheckingClipboard(false);
 	}, []);
+
+	// callbacks
+	const handlePresentModalPress = useCallback(async () => {
+		bottomSheetModalRef.current?.present();
+		// bottomsheetが開かれたタイミングで自動的にクリップボードをチェック
+		await checkClipboardAndValidate();
+	}, [checkClipboardAndValidate]);
+
+	// bottomsheetが閉じられたときの処理
+	const handleModalDismiss = useCallback(() => {
+		// bottomsheetが閉じられるたびにフォームの内容をクリア
+		clearFormContent();
+	}, [clearFormContent]);
 
 	const handleSubmit = async () => {
 		if (!validationResult.isValid) return;
@@ -62,7 +78,9 @@ export default function UrlForm() {
 
 			// 成功時の処理
 			Alert.alert("成功", "URLが送信されました！");
-			bottomSheetModalRef.current?.dismiss(); // モーダルを閉じる
+
+			// 送信成功時はフォームの内容のみクリア（bottomsheetは開いたまま）
+			clearFormContent();
 		} catch (e) {
 			Alert.alert("エラー", "送信に失敗しました。");
 		} finally {
@@ -105,6 +123,7 @@ export default function UrlForm() {
 					elevation: 16,
 				}}
 				index={0}
+				onDismiss={handleModalDismiss}
 			>
 				<BottomSheetView className="p-6">
 					{/* ヘッダー部分 */}
