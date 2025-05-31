@@ -3,20 +3,43 @@ import * as Clipboard from "expo-clipboard";
 import React, { useCallback, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Button, Text, View } from "react-native";
 import { z } from "zod";
+import { cleanUrl, fetchOGData, OGData } from "../lib/ogUtils";
+import OGPreview from "./OGPreview";
 
 const UrlSchema = z.string().url({ message: "無効なURLです。" });
 
 export default function UrlForm() {
 	const [clipboardContent, setClipboardContent] = useState<string>("");
+	const [cleanedUrl, setCleanedUrl] = useState<string>("");
 	const [validationResult, setValidationResult] = useState<{
 		isValid: boolean;
 		error?: string;
 	}>({ isValid: false });
 	const [isLoading, setIsLoading] = useState(false);
 	const [isCheckingClipboard, setIsCheckingClipboard] = useState(false);
+	const [isFetchingOG, setIsFetchingOG] = useState(false);
+	const [ogData, setOgData] = useState<OGData | null>(null);
+	const [ogError, setOgError] = useState<string | null>(null);
 
 	// ref
 	const bottomSheetModalRef = useRef<BottomSheetModal>(null);
+
+	// OG情報を取得する関数
+	const fetchOGInfo = useCallback(async (url: string) => {
+		setIsFetchingOG(true);
+		setOgData(null);
+		setOgError(null);
+
+		try {
+			const result = await fetchOGData(url);
+			setOgData(result);
+		} catch (error) {
+			console.error("OG情報取得エラー:", error);
+			setOgError("プレビュー情報の取得に失敗しました");
+		} finally {
+			setIsFetchingOG(false);
+		}
+	}, []);
 
 	// クリップボードの内容をチェックしてバリデーション
 	const checkClipboardAndValidate = useCallback(async () => {
@@ -28,30 +51,56 @@ export default function UrlForm() {
 			// URLバリデーション
 			const result = UrlSchema.safeParse(text);
 			if (result.success) {
+				// URLをクリーン化
+				const cleaned = cleanUrl(text);
+				setCleanedUrl(cleaned);
+
 				setValidationResult({ isValid: true });
+
+				// OG情報を取得
+				await fetchOGInfo(text);
 			} else {
 				setValidationResult({
 					isValid: false,
 					error: result.error.errors[0]?.message || "無効なURLです。",
 				});
+				setCleanedUrl("");
+				setOgData(null);
+				setOgError(null);
 			}
 		} catch (error) {
 			setClipboardContent("");
+			setCleanedUrl("");
 			setValidationResult({
 				isValid: false,
 				error: "クリップボードの読み取りに失敗しました。",
 			});
+			setOgData(null);
+			setOgError(null);
 		} finally {
 			setIsCheckingClipboard(false);
 		}
-	}, []);
+	}, [fetchOGInfo]);
 
 	// フォームの内容をクリアする関数
 	const clearFormContent = useCallback(() => {
 		setClipboardContent("");
+		setCleanedUrl("");
 		setValidationResult({ isValid: false });
 		setIsLoading(false);
 		setIsCheckingClipboard(false);
+		setIsFetchingOG(false);
+		setOgData(null);
+		setOgError(null);
+	}, []);
+
+	// OG情報だけをクリアする関数（クリップボードボタンに戻る）
+	const clearOGData = useCallback(() => {
+		setClipboardContent("");
+		setCleanedUrl("");
+		setValidationResult({ isValid: false });
+		setOgData(null);
+		setOgError(null);
 	}, []);
 
 	// callbacks
@@ -73,8 +122,9 @@ export default function UrlForm() {
 		try {
 			setIsLoading(true);
 
-			// ここでURLを送信する処理を実装します
-			console.log("送信されたURL:", clipboardContent);
+			// ここでクリーンなURLを送信する処理を実装します
+			console.log("送信されたURL:", cleanedUrl);
+			console.log("OG情報:", ogData);
 
 			// 成功時の処理
 			Alert.alert("成功", "URLが送信されました！");
@@ -145,18 +195,6 @@ export default function UrlForm() {
 						</View>
 					) : (
 						<View>
-							{/* クリップボードの内容表示 */}
-							<View className="mb-6">
-								<Text className="text-sm font-medium text-gray-700 mb-3">
-									取得した内容
-								</Text>
-								<View className="bg-gray-50 border border-gray-200 rounded-xl p-4 min-h-[100px]">
-									<Text className="text-base text-gray-800" numberOfLines={4}>
-										{clipboardContent || "クリップボードが空です"}
-									</Text>
-								</View>
-							</View>
-
 							{/* バリデーション結果 */}
 							{validationResult.isValid && (
 								<View className="border rounded-xl p-4 mb-6 bg-green-50 border-green-200">
@@ -174,14 +212,41 @@ export default function UrlForm() {
 								</View>
 							)}
 
-							{/* クリップボードを確認するボタンまたは再確認ボタン */}
+							{/* クリップボードボタン / OG情報プレビュー / ローディング表示 */}
 							<View className="mb-6">
-								<Button
-									title="クリップボードを確認"
-									onPress={checkClipboardAndValidate}
-									color="#6B7280"
-								/>
+								{isFetchingOG ? (
+									<View className="border border-gray-300 rounded-xl p-4 bg-gray-50">
+										<View className="justify-center items-center py-4">
+											<ActivityIndicator size="small" color="#3B82F6" />
+											<Text className="text-gray-500 mt-2 text-sm">
+												プレビュー情報を取得中...
+											</Text>
+										</View>
+									</View>
+								) : ogData ? (
+									<OGPreview
+										ogData={ogData}
+										url={cleanedUrl || clipboardContent}
+										onClear={clearOGData}
+									/>
+								) : (
+									<View className="border border-gray-300 rounded-xl p-4 bg-gray-50">
+										<Button
+											title="クリップボードを確認"
+											onPress={checkClipboardAndValidate}
+											color="#6B7280"
+										/>
+									</View>
+								)}
 							</View>
+
+							{ogError && !isFetchingOG && (
+								<View className="border rounded-xl p-4 mb-6 bg-yellow-50 border-yellow-200">
+									<Text className="text-base font-medium text-yellow-700">
+										⚠️ {ogError}
+									</Text>
+								</View>
+							)}
 
 							{/* 下部のボタン */}
 							<View className="mt-2">
